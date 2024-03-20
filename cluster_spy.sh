@@ -19,7 +19,7 @@ logs_tails_count=${1:-200}
 static_logs_tails_count=${2:-200}
 
 # Set default tail line value for journalctl.
-journalctl_logs_lines=${3:-"${JOURNALCTL_LINES:=JOURNALCTL_LINES_DEFAULT}"}
+journalctl_logs_lines=${3:-"${JOURNALCTL_LINES:=$JOURNALCTL_LINES_DEFAULT}"}
 
 # Set default pods logs filter, or use provided argument.
 pods_logs_filter=${4:-"| grep -i -E 'error|failed|fatal'"}
