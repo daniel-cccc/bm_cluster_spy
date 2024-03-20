@@ -4,39 +4,40 @@
 TEMP_KEY_FILE=""
 SSH_AGENT_STARTED=0
 CRICTL_TIMEOUT="--timeout=2s"
-KUBECTL_TINEOUT="--request-timeout=2s"
+KUBECTL_TIMEOUT="--request-timeout=2s"
 STATIC_PODS_GREP_LINES=30
 JOURNALCTL_LINES_DEFAULT=1000
 JOURNALCTL_GREP_LINES=30
-# Define the CP nodepool annotation key and value
+# Define the CP nodepool annotation key and value.
 ANNOTATION_KEY="baremetal.cluster.gke.io/control-plane"
 ANNOTATION_VALUE="true"
+
+# Set default value for tail, or use provided argument.
+logs_tails_count=${1:-200}
+
+# Set default value for tail for static pods, or use provided argument.
+static_logs_tails_count=${2:-200}
+
+# Set default tail line value for journalctl.
+journalctl_logs_lines=${3:-"${JOURNALCTL_LINES:=JOURNALCTL_LINES_DEFAULT}"}
+
+# Set default pods logs filter, or use provided argument.
+pods_logs_filter=${4:-"| grep -i -E 'error|failed|fatal'"}
+
+# Set default static pods logs filter, or use provided argument.
+static_pods_logs_filter=${5:-"| grep -i -E 'error|failed|fatal'"}
 
 entry_new_line="\n-------------------------\n"
 resource_new_line="--------------------------------------------------\n"
 
-# Set default value for tail, or use provided argument
-logs_tails_count=${1:-1000}
-
-# Set default value for tail for static pods, or use provided argument
-static_logs_tails_count=${2:-100}
-
-journalctl_logs_lines=${3:-"${JOURNALCTL_LINES:=JOURNALCTL_LINES_DEFAULT}"}
-
-# Set default pods logs filter, or use provided argument
-pods_logs_filter=${4:-"| grep -i -E 'error|failed|fatal'"}
-
-# Set default static pods logs filter, or use provided argument
-static_pods_logs_filter=${5:-"| grep -i -E 'error|failed|fatal'"}
-
 execute_kubectl_commands() {
     local input=$1
     local command_template=$2
-    # Read each line of the command output
+    # Read each line of the command output.
     while read -r line; do
         namespace=$(echo "$line" | awk '{print $1}')
         resource=$(echo "$line" | awk '{print $2}')
-        # skip header
+        # skip header.
         if [ "$namespace" = "NAMESPACE" ] || [ "$namespace" = "NAME" ] || [ "$namespace" = "" ]; then
             continue
         fi
@@ -49,69 +50,69 @@ execute_kubectl_commands() {
 
 echo -e "---------------------------------------------- Cluster Overview ----------------------------------------------"
 
-command="kubectl $KUBECTL_TINEOUT get cluster -A -o wide"
+command="kubectl $KUBECTL_TIMEOUT get cluster -A -o wide"
 echo -e "Executing: $command\n"
 echo "$(eval "$command")"
 
 echo -e $entry_new_line
-command="kubectl $KUBECTL_TINEOUT get nodepool -A -o wide"
+command="kubectl $KUBECTL_TIMEOUT get nodepool -A -o wide"
 echo -e "Executing: $command\n"
 echo "$(eval "$command")"
 
 echo -e $entry_new_line
-command="kubectl $KUBECTL_TINEOUT get nodes -A -o wide"
+command="kubectl $KUBECTL_TIMEOUT get nodes -A -o wide"
 echo -e "Executing: $command\n"
 echo "$(eval "$command")"
 
 echo -e $entry_new_line
-command="kubectl $KUBECTL_TINEOUT get baremetalmachine -A -o wide"
+command="kubectl $KUBECTL_TIMEOUT get baremetalmachine -A -o wide"
 echo -e "Executing: $command\n"
 echo "$(eval "$command")"
 
 # Get bm-system and kube-system pods, including jobs and controllers, which we should focus on.
 echo -e $entry_new_line
-command="kubectl $KUBECTL_TINEOUT get pods -A -o wide | grep -E 'kube-system|bm-system' | grep -v -E 'Running|Completed'"
+command="kubectl $KUBECTL_TIMEOUT get pods -A -o wide | grep -E 'kube-system|bm-system' | grep -v -E 'Running|Completed'"
 echo -e "Executing: $command\n"
 echo "$(eval "$command")"
 
 echo -e $resource_new_line
-command="for i in {1..3}; do (time kubectl $KUBECTL_TINEOUT describe cluster -A > /dev/null) 2>&1 | grep -i real; done"
+command="for i in {1..3}; do (time kubectl $KUBECTL_TIMEOUT describe cluster -A > /dev/null) 2>&1 | grep -i real; done"
 echo -e "Executing: $command\n"
-echo -e "API server respone time:"
-echo "$(eval "$command")"
+echo -e "API server response time:"
+echo -e "$(eval "$command")\n"
 
 echo -e "--------------------------------------------------------------------------------------------------------------"
 
-command="kubectl $KUBECTL_TINEOUT get cluster -A -o wide"
+command="kubectl $KUBECTL_TIMEOUT get cluster -A -o wide"
 input=$(eval "$command")
 echo -e "Executing: $command\n"
 echo "$input"
 echo -e $entry_new_line
-execute_kubectl_commands "$input" "kubectl $KUBECTL_TINEOUT  describe cluster {resource} -n {namespace} | sed -n '/^Status/,\$p'" 
+execute_kubectl_commands "$input" "kubectl $KUBECTL_TIMEOUT  describe cluster {resource} -n {namespace} | sed -n '/^Status/,\$p'" 
 
 echo -e $resource_new_line
-command="kubectl $KUBECTL_TINEOUT get pods -A -o wide | grep -E 'cluster-operator|cap-controller-manager|lifecycle-controllers-manager'"
+command="kubectl $KUBECTL_TIMEOUT get pods -A -o wide | grep -E 'cluster-operator|cap-controller-manager|lifecycle-controllers-manager'"
 input=$(eval "$command")
 echo -e "Executing: $command\n"
 echo "$input"
 echo -e $entry_new_line
-execute_kubectl_commands "$inout" "kubectl $KUBECTL_TINEOUT describe pod {resource} -n {namespace} | sed -n '/^Events:/,\$p'"
+execute_kubectl_commands "$inout" "kubectl $KUBECTL_TIMEOUT describe pod {resource} -n {namespace} | sed -n '/^Events:/,\$p'"
 
 echo -e $resource_new_line
-execute_kubectl_commands "$input" "kubectl $KUBECTL_TINEOUT logs {resource} -n {namespace} --all-containers --tail $logs_tails_count $pods_logs_filter"
+execute_kubectl_commands "$input" "kubectl $KUBECTL_TIMEOUT logs {resource} -n {namespace} --all-containers --tail $logs_tails_count $pods_logs_filter"
 
 echo -e $resource_new_line
-command="kubectl $KUBECTL_TINEOUT get pods -A -o wide | grep -v -E 'bm-system|Running|Completed'"
+command="kubectl $KUBECTL_TIMEOUT get pods -A -o wide | grep -v -E 'bm-system|Running|Completed'"
 echo -e "Executing: $command\n"
 echo "$(eval "$command")"
 
 echo -e $resource_new_line
-command="kubectl $KUBECTL_TINEOUT get pods -A -o wide | grep bm-system | grep -v -E 'Running|Completed'"
+command="kubectl $KUBECTL_TIMEOUT get pods -A -o wide | grep bm-system | grep -v -E 'Running|Completed'"
 echo -e "Executing: $command\n"
 input="$(eval "$command")"
 echo "$input"
 echo -e $entry_new_line
-execute_kubectl_commands "$input" "kubectl $KUBECTL_TINEOUT logs {resource} -n {namespace} --tail $logs_tails_count $pods_logs_filter"
+execute_kubectl_commands "$input" "kubectl $KUBECTL_TIMEOUT logs {resource} -n {namespace} --tail $logs_tails_count $pods_logs_filter"
 
 echo -e $resource_new_line
 command="kubectl get node -A -o wide"
@@ -119,16 +120,16 @@ echo -e "Executing: $command\n"
 input="$(eval "$command")"
 echo "$input"
 echo -e $entry_new_line
-execute_kubectl_commands "$input" "kubectl $KUBECTL_TINEOUT describe node {namespace} | sed -n '/  Resource/,/Events:/p' | sed '/Events:/d' | head -n 4"
+execute_kubectl_commands "$input" "kubectl $KUBECTL_TIMEOUT describe node {namespace} | sed -n '/  Resource/,/Events:/p' | sed '/Events:/d' | head -n 4"
 
 
 echo -e $resource_new_line
-command="kubectl $KUBECTL_TINEOUT get baremetalmachine -A -o wide"
+command="kubectl $KUBECTL_TIMEOUT get baremetalmachine -A -o wide"
 echo -e "Executing: $command\n"
 input="$(eval "$command")"
 echo "$input"
 echo -e $entry_new_line
-execute_kubectl_commands "$input" "kubectl $KUBECTL_TINEOUT describe baremetalmachine {resource} -n {namespace} | sed -n '/^Status/,\$p'"
+execute_kubectl_commands "$input" "kubectl $KUBECTL_TIMEOUT describe baremetalmachine {resource} -n {namespace} | sed -n '/^Status/,\$p'"
 
 echo -e "===============================================================================================================\n"
 
@@ -141,7 +142,7 @@ setup_ssh_agent() {
     if [ -n "$SSH_AUTH_SOCK" ] && [ -S "$SSH_AUTH_SOCK" ]; then
         SSH_AGENT_STARTED=1
     else
-        # Start ssh-agent if ssh-agent is not running
+        # Start ssh-agent if ssh-agent is not running.
         eval $(ssh-agent -s)
         SSH_AGENT_STARTED=1
     fi
@@ -155,7 +156,7 @@ update_private_key() {
     if [ $SSH_AGENT_STARTED -eq 1 ]; then
         echo "$private_key" | ssh-add -
     else
-        # Create or update the temporary file for the SSH key
+        # Create or update the temporary file for the SSH key.
         if [[ -z $TEMP_KEY_FILE ]]; then
             TEMP_KEY_FILE=$(mktemp)
             chmod 600 "$TEMP_KEY_FILE"
@@ -185,13 +186,13 @@ cleanup() {
     fi
 }
 
-# Set up a trap to clean up on script exit
+# Set up a trap to clean up on script exit.
 trap cleanup EXIT
 
-# fetch_logs_on_host to fetch logs on a given host
+# fetch_logs_on_host to fetch logs on a given host.
 fetch_logs_on_host() {
     local node_ip=$1
-    # Initialize arrays
+    # Initialize arrays.
     container_ids=()
     status=()
     container_names=()
@@ -246,29 +247,29 @@ fetch_logs_on_host() {
 declare -A ssh_keys_map
 
 while IFS= read -r line; do
-    # Extract namespace and secret name
+    # Extract namespace and secret name.
     namespace=$(echo "$line" | awk '{print $1}')
     secret_name=$(echo "$line" | awk '{print $2}')
 
-    # Retrieve the SSH key content from the secret
-    ssh_key_content=$(kubectl $KUBECTL_TINEOUT get secret "$secret_name" -n "$namespace" -o jsonpath="{.data.id_rsa}" | base64 --decode)
+    # Retrieve the SSH key content from the secret.
+    ssh_key_content=$(kubectl $KUBECTL_TIMEOUT get secret "$secret_name" -n "$namespace" -o jsonpath="{.data.id_rsa}" | base64 --decode)
 
     ssh_keys_map[$namespace]=$ssh_key_content
 done < <(kubectl get secret -A | grep ssh-key)
 
 setup_ssh_agent
 
-# Get the list of all NodePool resources across all namespaces that match the CP nodepool annotation
-NODEPOOLS=$(kubectl $KUBECTL_TINEOUT get NodePool --all-namespaces -o jsonpath="{range .items[?(@.metadata.annotations['baremetal\.cluster\.gke\.io/control-plane']=='true')]}{.metadata.namespace}{'\t'}{.metadata.name}{'\n'}{end}")
+# Get the list of all NodePool resources across all namespaces that match the CP nodepool annotation.
+NODEPOOLS=$(kubectl $KUBECTL_TIMEOUT get NodePool --all-namespaces -o jsonpath="{range .items[?(@.metadata.annotations['baremetal\.cluster\.gke\.io/control-plane']=='true')]}{.metadata.namespace}{'\t'}{.metadata.name}{'\n'}{end}")
 
 if [ -z "$NODEPOOLS" ]; then
     echo "No NodePool resources found with the annotation ${ANNOTATION_KEY}=${ANNOTATION_VALUE}"
 else
     while IFS=$'\t' read -r NAMESPACE NODEPOOL_NAME; do
-        DESCRIPTION=$(kubectl $KUBECTL_TINEOUT describe NodePool "$NODEPOOL_NAME" -n "$NAMESPACE")
+        DESCRIPTION=$(kubectl $KUBECTL_TIMEOUT describe NodePool "$NODEPOOL_NAME" -n "$NAMESPACE")
         CLUSTER_NAME=$(echo "$DESCRIPTION" | awk '/^Spec:/{flag=1} flag && /Cluster Name:/{print $3; flag=0}')
 
-        # Extract Node IP and store them in an array
+        # Extract Node IP and store them in an array.
         IFS=$'\n' read -r -d '' -a NODE_IPS < <(echo "$DESCRIPTION" | awk '/^Spec:/{flag=1} flag && /Address:/{print $2}' && printf '\0')
         echo "NodePool: $NODEPOOL_NAME, Cluster Name: $CLUSTER_NAME, Namespace: $NAMESPACE"
         if [ -z "${ssh_keys_map[$NAMESPACE]}" ] && [ -z "$SSH_KEY_PATH" ]; then
@@ -276,7 +277,7 @@ else
             echo -e $entry_new_line
             continue
         fi
-        # update up the SSH private key on each node pool
+        # update up the SSH private key on each node pool.
         update_private_key "${ssh_keys_map[$NAMESPACE]}"
         for ip in "${NODE_IPS[@]}"; do
             echo -e $resource_new_line
