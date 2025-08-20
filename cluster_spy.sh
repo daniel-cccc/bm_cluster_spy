@@ -1,5 +1,76 @@
 #!/bin/bash
 
+#
+# Description:
+#   This script is a comprehensive diagnostic tool for gathering health and status
+#   information from a Kubernetes cluster, with a focus on environments like GKE
+#   on Bare Metal. It performs two main functions:
+#
+#   1. Kubernetes API Queries: It uses `kubectl` to fetch the status of key
+#      resources like Clusters, NodePools, Nodes, BareMetalMachines, and Pods.
+#      It specifically highlights non-running pods and collects logs and events from
+#      critical management controllers. It also runs a quick API server
+#      responsiveness test.
+#
+#   2. Node-Level SSH Checks: For nodes identified as control plane nodes (via a
+#      specific NodePool annotation), it connects via SSH to perform deep inspection.
+#      This includes checking system load (`top`), network connections (`netstat`),
+#      static pod container status/logs (`crictl`), etcd health (`etcdctl`), and
+#      containerd service logs (`journalctl`).
+#
+#   The script automatically discovers SSH private keys from secrets within the
+#   cluster or can use a local SSH agent or a specified key file.
+#
+#
+# Usage:
+#   ./your_script_name.sh [LOGS_TAIL] [STATIC_LOGS_TAIL] [JOURNAL_LOGS] [POD_LOG_FILTER]
+#
+# Positional Arguments (all are optional):
+#   [LOGS_TAIL]           - Number of log lines to fetch from standard Kubernetes pods.
+#                           Default: 200
+#
+#   [STATIC_LOGS_TAIL]    - Number of log lines to fetch from static pods (e.g., etcd,
+#                           kube-apiserver) using `crictl` on the node.
+#                           Default: 200
+#
+#   [JOURNAL_LOGS]        - Number of log lines to fetch from `journalctl -u containerd`.
+#                           Default: 1000
+#
+#   [POD_LOG_FILTER]      - A shell command string used to filter standard pod logs.
+#                           Must be quoted to be passed correctly.
+#                           Default: "| grep -i -E 'error|failed|fatal'"
+#
+# Environment Variables:
+#   SSH_KEY_PATH          - If set, this script will use the SSH private key at this
+#                           path for all SSH connections, bypassing the automatic key
+#                           discovery from Kubernetes secrets.
+#
+#   JOURNALCTL_LINES      - Can be used to set the number of journalctl log lines if the
+#                           third positional argument is not provided.
+#
+# Prerequisites:
+#   - `kubectl` must be installed and configured with a context pointing to the
+#     target cluster's admin cluster.
+#   - The user running the script must have `get`, `list`, and `describe`
+#     permissions for clusters, nodepools, nodes, baremetalmachines, pods, and secrets.
+#   - `ssh` and `ssh-agent` must be available in the environment.
+#   - For node-level checks, the control plane nodes must be accessible via SSH
+#     from where the script is run.
+#
+# Examples:
+#   # Run with all default settings
+#   ./your_script_name.sh
+#
+#   # Get the last 500 log lines from pods and 100 from static pods
+#   ./your_script_name.sh 500 100
+#
+#   # Use a custom filter to search for 'connection refused' in pod logs
+#   ./your_script_name.sh 200 200 1000 "| grep 'connection refused'"
+#
+#   # Run using a specific SSH key instead of discovering from cluster secrets
+#   SSH_KEY_PATH=~/.ssh/my_cluster_key.pem ./your_script_name.sh
+#
+
 # Globals
 TEMP_KEY_FILE=""
 SSH_AGENT_STARTED=0
