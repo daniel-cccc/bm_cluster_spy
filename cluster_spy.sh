@@ -309,7 +309,7 @@ fetch_logs_on_host() {
     commands+="sleep 0.5"
     echo "$(execute_ssh_command "$node_ip" "$commands")"
 
-    echo -e $entry_new_line
+    echo -e $entry_new_linehttps://github.com/daniel-cccc/bm_cluster_spy/blob/main/cluster_spy.sh
     command="journalctl -u containerd --no-pager -n $journalctl_logs_lines | grep -i 'RunPodSandbox.*returns sandbox id' | grep -i -E 'etcd|kube-' | awk '{print \$6 \$10}' | head -n $JOURNALCTL_GREP_LINES"
     echo -e "Executing: $command on host: $node_ip"
     echo "$(execute_ssh_command "$ip" "$command")"
@@ -339,10 +339,11 @@ else
     while IFS=$'\t' read -r NAMESPACE NODEPOOL_NAME; do
         DESCRIPTION=$(kubectl $KUBECTL_TIMEOUT describe NodePool "$NODEPOOL_NAME" -n "$NAMESPACE")
         CLUSTER_NAME=$(echo "$DESCRIPTION" | awk '/^Spec:/{flag=1} flag && /Cluster Name:/{print $3; flag=0}')
+        echo -e $resource_new_line
+        echo "NodePool: $NODEPOOL_NAME, Cluster Name: $CLUSTER_NAME, Namespace: $NAMESPACE"
 
         # Extract Node IP and store them in an array.
         IFS=$'\n' read -r -d '' -a NODE_IPS < <(echo "$DESCRIPTION" | awk '/^Spec:/{flag=1} flag && /Address:/{print $2}' && printf '\0')
-        echo "NodePool: $NODEPOOL_NAME, Cluster Name: $CLUSTER_NAME, Namespace: $NAMESPACE"
         if [ -z "${ssh_keys_map[$NAMESPACE]}" ] && [ -z "$SSH_KEY_PATH" ]; then
             echo "SSH key is empty skip SSH to nodes in $NODEPOOL_NAME"
             echo -e $entry_new_line
@@ -353,7 +354,7 @@ else
         for ip in "${NODE_IPS[@]}"; do
             echo -e $resource_new_line
             echo  -e "Node IP: $ip"
-            fetch_logs_on_host "$ip"
+            fetch_logs_on_host "$ip" < /dev/null 
         done
         echo -e $resource_new_line
     done <<< "$NODEPOOLS"
