@@ -309,7 +309,7 @@ fetch_logs_on_host() {
     commands+="sleep 0.5"
     echo "$(execute_ssh_command "$node_ip" "$commands")"
 
-    echo -e $entry_new_linehttps://github.com/daniel-cccc/bm_cluster_spy/blob/main/cluster_spy.sh
+    echo -e $entry_new_line
     command="journalctl -u containerd --no-pager -n $journalctl_logs_lines | grep -i 'RunPodSandbox.*returns sandbox id' | grep -i -E 'etcd|kube-' | awk '{print \$6 \$10}' | head -n $JOURNALCTL_GREP_LINES"
     echo -e "Executing: $command on host: $node_ip"
     echo "$(execute_ssh_command "$ip" "$command")"
