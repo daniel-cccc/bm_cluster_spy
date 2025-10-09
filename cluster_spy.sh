@@ -190,12 +190,21 @@ echo "$(eval "$command")"
 
 # Baremetal Asible job pods
 echo -e $resource_new_line
-command="kubectl $KUBECTL_TIMEOUT get pods -A -o wide | grep bm-system | grep -v -E 'Running|Completed'"
+command="kubectl $KUBECTL_TIMEOUT get pods -A -o wide | grep bm-system | grep -v -E 'bm-system-default|bm-system-add-ons|bm-system-network|bm-system-check-kernel' | grep -v -E 'Running|Completed'"
 echo -e "Executing: $command\n"
 input="$(eval "$command")"
 echo "$input"
 echo -e $entry_new_line
 execute_kubectl_commands "$input" "kubectl $KUBECTL_TIMEOUT logs {resource} -n {namespace} $ansible_pods_logs_filter | tail -n $logs_tails_count"
+
+# Baremetal Asible job pods without "final verdict"
+echo -e $resource_new_line
+command="kubectl $KUBECTL_TIMEOUT get pods -A -o wide | grep -E 'bm-system-default|bm-system-add-ons|bm-system-network|bm-system-check-kernel' | grep -v -E 'Running|Completed'"
+echo -e "Executing: $command\n"
+input="$(eval "$command")"
+echo "$input"
+echo -e $entry_new_line
+execute_kubectl_commands "$input" "kubectl $KUBECTL_TIMEOUT logs {resource} -n {namespace} --tail $logs_tails_count $pods_logs_filter"
 
 echo -e $resource_new_line
 command="kubectl get node -A -o wide"
