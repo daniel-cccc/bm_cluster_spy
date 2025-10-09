@@ -23,30 +23,38 @@
 #
 #
 # Usage:
-#   ./your_script_name.sh [LOGS_TAIL] [STATIC_LOGS_TAIL] [JOURNAL_LOGS] [POD_LOG_FILTER]
+#   ./your_script_name.sh [LOGS_TAIL] [STATIC_LOGS_TAIL] [JOURNAL_LOGS] [POD_LOG_FILTER] [ANSIBLE_POD_LOG_FILTER] [STATIC_POD_LOG_FILTER] 
 #
 # Positional Arguments (all are optional):
-#   [LOGS_TAIL]           - Number of log lines to fetch from standard Kubernetes pods.
-#                           Default: 200
+#   [LOGS_TAIL]                - Number of log lines to fetch from standard Kubernetes pods.
+#                              Default: 200
 #
-#   [STATIC_LOGS_TAIL]    - Number of log lines to fetch from static pods (e.g., etcd,
-#                           kube-apiserver) using `crictl` on the node.
-#                           Default: 200
+#   [STATIC_LOGS_TAIL]       - Number of log lines to fetch from static pods (e.g., etcd,
+#                              kube-apiserver) using `crictl` on the node.
+#                              Default: 200
 #
-#   [JOURNAL_LOGS]        - Number of log lines to fetch from `journalctl -u containerd`.
-#                           Default: 1000
+#   [JOURNAL_LOGS]           - Number of log lines to fetch from `journalctl -u containerd`.
+#                              Default: 1000
 #
-#   [POD_LOG_FILTER]      - A shell command string used to filter standard pod logs.
-#                           Must be quoted to be passed correctly.
-#                           Default: "| grep -i -E 'error|failed|fatal'"
+#   [POD_LOG_FILTER]         - A shell command string used to filter standard pod logs.
+#                              Must be quoted to be passed correctly.
+#                              Default: "| grep -i -E 'error|failed|fatal'"
+#
+#   [ANSIBLE_POD_LOG_FILTER] - A shell command string used to filter standard pod logs.
+#                              Must be quoted to be passed correctly.
+#                              Default: "| grep -i -E 'TASK \[Reach a final verdict\]|PLAY RECAP' -A 2"
+#
+#   [STATIC_POD_LOG_FILTER]  - A shell command string used to filter standard pod logs.
+#                              Must be quoted to be passed correctly.
+#                              Default: "| grep -i -E 'error|failed|fatal'"
 #
 # Environment Variables:
-#   SSH_KEY_PATH          - If set, this script will use the SSH private key at this
-#                           path for all SSH connections, bypassing the automatic key
-#                           discovery from Kubernetes secrets.
+#   SSH_KEY_PATH             - If set, this script will use the SSH private key at this
+#                              path for all SSH connections, bypassing the automatic key
+#                              discovery from Kubernetes secrets.
 #
-#   JOURNALCTL_LINES      - Can be used to set the number of journalctl log lines if the
-#                           third positional argument is not provided.
+#   JOURNALCTL_LINES         - Can be used to set the number of journalctl log lines if the
+#                              third positional argument is not provided.
 #
 # Prerequisites:
 #   - `kubectl` must be installed and configured with a context pointing to the
@@ -95,8 +103,11 @@ journalctl_logs_lines=${3:-"${JOURNALCTL_LINES:=$JOURNALCTL_LINES_DEFAULT}"}
 # Set default pods logs filter, or use provided argument.
 pods_logs_filter=${4:-"| grep -i -E 'error|failed|fatal'"}
 
+# Set default anisble job pods logs filter, or use provided argument.
+ansible_pods_logs_filter=${5:-"| grep -i -E 'TASK \[Reach a final verdict\]|PLAY RECAP' -A 2"}
+
 # Set default static pods logs filter, or use provided argument.
-static_pods_logs_filter=${5:-"| grep -i -E 'error|failed|fatal'"}
+static_pods_logs_filter=${6:-"| grep -i -E 'error|failed|fatal'"}
 
 entry_new_line="\n-------------------------\n"
 resource_new_line="--------------------------------------------------\n"
@@ -177,13 +188,14 @@ command="kubectl $KUBECTL_TIMEOUT get pods -A -o wide | grep -v -E 'bm-system|Ru
 echo -e "Executing: $command\n"
 echo "$(eval "$command")"
 
+# Baremetal Asible job pods
 echo -e $resource_new_line
 command="kubectl $KUBECTL_TIMEOUT get pods -A -o wide | grep bm-system | grep -v -E 'Running|Completed'"
 echo -e "Executing: $command\n"
 input="$(eval "$command")"
 echo "$input"
 echo -e $entry_new_line
-execute_kubectl_commands "$input" "kubectl $KUBECTL_TIMEOUT logs {resource} -n {namespace} --tail $logs_tails_count $pods_logs_filter"
+execute_kubectl_commands "$input" "kubectl $KUBECTL_TIMEOUT logs {resource} -n {namespace} $ansible_pods_logs_filter | tail -n $logs_tails_count"
 
 echo -e $resource_new_line
 command="kubectl get node -A -o wide"
